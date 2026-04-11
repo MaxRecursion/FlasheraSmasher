@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marathi Responder · Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="bg-grid"></div>
+
+  <main class="app">
+    <header class="header">
+      <div class="header-left">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 4.01c-1 .49-1.98.689-3 .99-1.121-1.265-2.783-1.335-4.38-.737S11.977 6.323 12 8v1c-3.245.083-6.135-1.395-8-4 0 0-4.182 7.433 4 11-1.872 1.247-3.739 2.088-6 2 3.308 1.803 6.913 2.423 10.034 1.517 3.58-1.04 6.522-3.723 7.651-7.742a13.84 13.84 0 0 0 .497-3.753c-.002-.249 1.51-2.772 1.818-4.013z"/>
+          </svg>
+        </div>
+        <div>
+          <h1>Marathi Responder</h1>
+          <p class="subtitle">Control &amp; Monitoring</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="clock mono" id="clock">--:--:--</div>
+        <div class="service-pill" id="servicePill">
+          <span class="dot"></span>
+          <span class="label">checking…</span>
+        </div>
+      </div>
+    </header>
+
+    <section class="hero card">
+      <div class="hero-left">
+        <div class="hero-label">Current Activity</div>
+        <div class="hero-status" id="activityStatus">Idle</div>
+        <div class="hero-message" id="activityMessage">No task running</div>
+      </div>
+      <div class="hero-actions">
+        <button class="btn btn-primary" id="runNowBtn" title="Fetch a trending tweet, draft a reply, and send to ntfy for approval">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span>Run Now</span>
+        </button>
+        <button class="btn btn-secondary" id="healthBtn" title="Run all diagnostics">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          <span>Health Check</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="grid-2">
+      <div class="card stats-card">
+        <h2>Service</h2>
+        <div class="stat-row"><span>Status</span><span id="svcStatus" class="val">—</span></div>
+        <div class="stat-row"><span>PID</span><span id="svcPid" class="val mono">—</span></div>
+        <div class="stat-row"><span>Last exit</span><span id="svcExit" class="val mono">—</span></div>
+        <div class="stat-row"><span>Plist</span><span id="svcPlist" class="val mono">—</span></div>
+        <div class="btn-row">
+          <button class="btn btn-ghost" data-action="start">Start</button>
+          <button class="btn btn-ghost" data-action="stop">Stop</button>
+          <button class="btn btn-ghost" data-action="restart">Restart</button>
+        </div>
+      </div>
+
+      <div class="card stats-card">
+        <h2>Schedule</h2>
+        <div class="stat-row"><span>Daily slots</span><span id="cfgDaily" class="val mono">—</span></div>
+        <div class="stat-row"><span>Window</span><span id="cfgWindow" class="val mono">—</span></div>
+        <div class="stat-row"><span>Timezone</span><span id="cfgTz" class="val mono">—</span></div>
+        <div class="stat-row"><span>Min followers</span><span id="cfgFollowers" class="val mono">—</span></div>
+        <div class="stat-row"><span>Min likes</span><span id="cfgLikes" class="val mono">—</span></div>
+        <div class="stat-row"><span>Total replied</span><span id="stRepliedCount" class="val mono accent">—</span></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Health Checks</h2>
+        <span class="badge" id="healthBadge">not run</span>
+      </div>
+      <div class="health-grid" id="healthGrid">
+        <div class="muted">Click <strong>Health Check</strong> to run diagnostics.</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Activity Log</h2>
+        <span class="live-dot" id="liveDot" title="live"></span>
+      </div>
+      <div class="log" id="eventLog">
+        <div class="muted">Waiting for events…</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Recent Replies</h2>
+      <div class="replies" id="repliedList">
+        <div class="muted">None yet.</div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      marathi-tweet-responder · local control panel · <span id="fpHost">127.0.0.1:8765</span>
+    </footer>
+  </main>
+
+  <div class="toasts" id="toasts"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

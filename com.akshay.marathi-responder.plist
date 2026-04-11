@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.akshay.marathi-responder</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/maxrecursion/Projects/marathi-tweet-responder/venv/bin/python3</string>
+        <string>-m</string>
+        <string>src.main</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/maxrecursion/Projects/marathi-tweet-responder</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/maxrecursion/Library/Logs/marathi-responder-stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/maxrecursion/Library/Logs/marathi-responder-stderr.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>
