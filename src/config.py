@@ -71,6 +71,15 @@ MIN_AUTHOR_FOLLOWERS = int(_get("MIN_AUTHOR_FOLLOWERS", "5000") or "5000")
 MIN_TWEET_LIKES = int(_get("MIN_TWEET_LIKES", "50") or "50")
 DAILY_REPLY_COUNT = int(_get("DAILY_REPLY_COUNT", "5") or "5")
 
+# X API cost controls
+# search_recent_tweets max_results per call. X bills pay-per-use per tweet
+# returned, so this is the single biggest cost lever. Must be 10..100.
+SEARCH_MAX_RESULTS = int(_get("SEARCH_MAX_RESULTS", "30") or "30")
+# In-memory cache TTL (seconds) for the most recent search result on a
+# TwitterClient instance. Reused when the same process calls search again
+# within the window (e.g. repeated "Run Now" clicks in the webui).
+SEARCH_CACHE_TTL = int(_get("SEARCH_CACHE_TTL", "600") or "600")
+
 # My Twitter identity (for reference / filtering)
 MY_USER_ID = "221373022"
 MY_USERNAME = "MaxRecursion"

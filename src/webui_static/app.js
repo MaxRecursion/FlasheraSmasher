@@ -6,6 +6,9 @@ const state = {
   lastActivityTask: null,
   lastReplied: -1,
   eventCount: 0,
+  sessionListSig: "",     // dedupe key: latest-session id + updated_at
+  expandedSession: null,  // id of currently-expanded session card
+  sessionDetails: {},     // id -> full session payload (cached)
 };
 
 // ---------- API helpers ----------
@@ -164,6 +167,241 @@ async function pollEvents() {
   }
 }
 
+// ---------- Sessions ----------
+function fmtTime(iso) {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    if (isNaN(d)) return iso;
+    return d.toLocaleString("en-GB", {
+      month: "short", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      hour12: false,
+    });
+  } catch { return iso; }
+}
+
+function statusClass(s) {
+  if (s === "posted") return "ok";
+  if (s === "skipped" || s === "timeout") return "warn";
+  if (s === "error" || s === "no_candidates") return "err";
+  if (s === "running") return "running";
+  return "";
+}
+
+function renderSessionSummary(s) {
+  const cls = statusClass(s.status);
+  const trig = s.trigger === "manual" ? "manual" : `slot #${s.slot_number}`;
+  const parts = [
+    `fetched <b>${s.fetched_count || 0}</b>`,
+    `eligible <b>${s.candidates_after_filter || 0}</b> (${s.relaxation_label || "—"})`,
+    `claude <b>${s.claude_calls_count || 0}</b>`,
+  ];
+  if (s.approval_response) parts.push(`reply <b>${esc(s.approval_response)}</b>`);
+  if (s.posted_tweet_id) parts.push(`posted <b>${esc(s.posted_tweet_id)}</b>`);
+  return `
+    <div class="session-item ${cls}" data-session-id="${esc(s.id)}">
+      <div class="session-head">
+        <div class="session-head-left">
+          <span class="session-status ${cls}">${esc(s.status || "?")}</span>
+          <span class="session-time mono">${esc(fmtTime(s.started_at))}</span>
+          <span class="session-trig">${esc(trig)}</span>
+          ${s.selected_author ? `<span class="session-who">@${esc(s.selected_author)}</span>` : ""}
+        </div>
+        <div class="session-head-right mono">
+          <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+      </div>
+      <div class="session-summary">${parts.join(" &middot; ")}</div>
+      ${s.outcome ? `<div class="session-outcome">${esc(s.outcome)}</div>` : ""}
+      <div class="session-detail" data-detail-for="${esc(s.id)}"></div>
+    </div>
+  `;
+}
+
+function renderSessionDetail(d) {
+  if (!d) return '<div class="muted">loading…</div>';
+  const parts = [];
+
+  // Filter stats
+  if (d.filter_stats && Object.keys(d.filter_stats).length) {
+    const rows = Object.entries(d.filter_stats)
+      .map(([k, v]) => `<span class="kv"><span class="k">${esc(k)}</span><span class="v mono">${esc(v)}</span></span>`)
+      .join("");
+    parts.push(`
+      <div class="detail-block">
+        <div class="detail-label">Filter breakdown</div>
+        <div class="kv-row">${rows}</div>
+        <div class="muted" style="margin-top:6px;font-size:11px;">
+          Relaxation: <b>${esc(d.relaxation_label || "—")}</b> (level ${esc(d.relaxation_level || 0)})
+        </div>
+      </div>
+    `);
+  }
+
+  // Selected tweet
+  if (d.selected_tweet) {
+    const t = d.selected_tweet;
+    const url = t.url ? `<a href="${esc(t.url)}" target="_blank" rel="noopener">open tweet ↗</a>` : "";
+    parts.push(`
+      <div class="detail-block">
+        <div class="detail-label">Selected tweet</div>
+        <div class="tweet-card">
+          <div class="tweet-meta mono">
+            <span>@${esc(t.author_username || "?")}</span>
+            <span>likes ${esc(t.likes ?? 0)}</span>
+            <span>rt ${esc(t.retweets ?? 0)}</span>
+            <span>score ${esc(t.score ?? 0)}</span>
+            ${url}
+          </div>
+          <div class="tweet-text">${esc(t.text || "")}</div>
+        </div>
+      </div>
+    `);
+  }
+
+  // Claude calls
+  if (d.claude_calls && d.claude_calls.length) {
+    const calls = d.claude_calls.map((c, i) => `
+      <details class="claude-call" ${i === d.claude_calls.length - 1 ? "open" : ""}>
+        <summary>
+          <span class="cc-kind ${esc(c.kind)}">${esc(c.kind)}</span>
+          <span class="mono">#${esc(c.attempt)}</span>
+          <span class="mono">${esc(c.ts || "")}</span>
+          <span class="mono">${esc(c.response_chars)} chars</span>
+          <span class="muted mono">${esc((c.model || "").replace("claude-", ""))}</span>
+        </summary>
+        <div class="cc-body">
+          <div class="cc-label">System prompt</div>
+          <pre class="cc-pre">${esc(c.system_prompt || "")}</pre>
+          <div class="cc-label">User prompt</div>
+          <pre class="cc-pre">${esc(c.user_prompt || "")}</pre>
+          <div class="cc-label">Claude response</div>
+          <pre class="cc-pre response">${esc(c.response || "")}</pre>
+        </div>
+      </details>
+    `).join("");
+    parts.push(`
+      <div class="detail-block">
+        <div class="detail-label">Claude calls (${d.claude_calls.length})</div>
+        ${calls}
+      </div>
+    `);
+  }
+
+  // Fetched tweets preview
+  if (d.fetched_tweets && d.fetched_tweets.length) {
+    const rows = d.fetched_tweets.slice(0, 12).map((t) => `
+      <div class="fetched-row">
+        <span class="mono who">@${esc(t.author_username || "?")}</span>
+        <span class="mono muted">followers ${esc(t.author_followers ?? 0)}</span>
+        <span class="mono muted">likes ${esc(t.likes ?? 0)}</span>
+        <span class="txt">${esc(t.text_preview || "")}</span>
+      </div>
+    `).join("");
+    const extra = d.fetched_tweets.length > 12
+      ? `<div class="muted" style="font-size:11px;padding-top:4px;">+${d.fetched_tweets.length - 12} more</div>`
+      : "";
+    parts.push(`
+      <div class="detail-block">
+        <div class="detail-label">Fetched from X (${d.fetched_count})</div>
+        <div class="fetched-list">${rows}${extra}</div>
+      </div>
+    `);
+  }
+
+  // Events timeline
+  if (d.events && d.events.length) {
+    const rows = d.events.map((e) => `
+      <div class="log-line ${esc(e.level || "info")}">
+        <span class="ts">${esc(e.ts)}</span>
+        <span class="text">${esc(e.text)}</span>
+      </div>
+    `).join("");
+    parts.push(`
+      <div class="detail-block">
+        <div class="detail-label">Timeline</div>
+        <div class="log" style="max-height:220px;">${rows}</div>
+      </div>
+    `);
+  }
+
+  return parts.join("") || '<div class="muted">no details</div>';
+}
+
+async function pollSessions() {
+  try {
+    const { sessions } = await api("/api/sessions");
+    const list = sessions || [];
+    const el = $("sessionsList");
+    const badge = $("sessionBadge");
+    badge.textContent = list.length ? `${list.length}` : "—";
+    badge.className = "badge" + (list.length ? " ok" : "");
+
+    // Signature avoids re-rendering when nothing changed (keeps the
+    // expanded detail pane from collapsing while the user is reading)
+    const sig = list.map((s) => `${s.id}:${s.status}:${s.ended_at || ""}:${s.claude_calls_count}:${s.approval_response || ""}`).join("|");
+    if (sig === state.sessionListSig && el.children.length) return;
+    state.sessionListSig = sig;
+
+    if (list.length === 0) {
+      el.innerHTML = '<div class="muted">No sessions yet. Click <strong>Run Now</strong> to create one.</div>';
+      return;
+    }
+    el.innerHTML = list.map(renderSessionSummary).join("");
+
+    el.querySelectorAll(".session-item").forEach((node) => {
+      node.addEventListener("click", (ev) => {
+        if (ev.target.closest("a")) return;
+        toggleSession(node.dataset.sessionId);
+      });
+    });
+
+    // Re-open the previously-expanded session so poll cycles don't close it
+    if (state.expandedSession) {
+      const n = el.querySelector(`[data-session-id="${CSS.escape(state.expandedSession)}"]`);
+      if (n) {
+        n.classList.add("expanded");
+        const det = n.querySelector(".session-detail");
+        const cached = state.sessionDetails[state.expandedSession];
+        if (cached) det.innerHTML = renderSessionDetail(cached);
+        // Force a re-fetch in case it's live (running session)
+        fetchSessionDetail(state.expandedSession, det);
+      }
+    }
+  } catch (e) {
+    console.error("sessions:", e);
+  }
+}
+
+async function fetchSessionDetail(id, targetEl) {
+  try {
+    const d = await api(`/api/sessions/${encodeURIComponent(id)}`);
+    state.sessionDetails[id] = d;
+    if (targetEl) targetEl.innerHTML = renderSessionDetail(d);
+  } catch (e) {
+    if (targetEl) targetEl.innerHTML = `<div class="muted">failed to load: ${esc(e.message)}</div>`;
+  }
+}
+
+async function toggleSession(id) {
+  const el = $("sessionsList");
+  const node = el.querySelector(`[data-session-id="${CSS.escape(id)}"]`);
+  if (!node) return;
+  const detailEl = node.querySelector(".session-detail");
+  if (node.classList.contains("expanded")) {
+    node.classList.remove("expanded");
+    state.expandedSession = null;
+    return;
+  }
+  // Collapse any other expanded sibling
+  el.querySelectorAll(".session-item.expanded").forEach((n) => n.classList.remove("expanded"));
+  node.classList.add("expanded");
+  state.expandedSession = id;
+  detailEl.innerHTML = '<div class="muted">loading…</div>';
+  await fetchSessionDetail(id, detailEl);
+}
+
 // ---------- Replied ----------
 async function pollReplied() {
   try {
@@ -282,6 +520,16 @@ document.querySelectorAll("[data-action]").forEach((btn) => {
   while (true) {
     await pollReplied();
     await new Promise((r) => setTimeout(r, 10000));
+  }
+})();
+
+(async function sessionsLoop() {
+  while (true) {
+    await pollSessions();
+    // Poll more frequently when a session is expanded/running so
+    // the live timeline updates without user interaction
+    const fast = state.expandedSession != null;
+    await new Promise((r) => setTimeout(r, fast ? 2500 : 5000));
   }
 })();
 

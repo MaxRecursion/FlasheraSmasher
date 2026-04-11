@@ -10,8 +10,8 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from . import claude_drafter, config, feed_scanner, notifier
-from .twitter_client import TwitterClient
+from . import claude_drafter, config, feed_scanner, notifier, session_log
+from .twitter_client import TwitterClient, get_shared_client
 
 log = logging.getLogger(__name__)
 
@@ -117,56 +117,97 @@ def _process_one_slot(
     tw: TwitterClient,
     slot_number: int,
     attempted_ids: set[str],
+    trigger: str = "scheduled",
 ) -> None:
-    log.info("=== Processing slot #%d ===", slot_number)
-    candidates = feed_scanner.find_top_tweets(count=10)
-    if not candidates:
-        log.info("No candidate tweets found for slot #%d", slot_number)
-        return
+    session = session_log.start(trigger=trigger, slot_number=slot_number)
+    log.info("=== Processing slot #%d (session %s) ===", slot_number, session.id)
 
-    tweet = next(
-        (c for c in candidates if c["id"] not in attempted_ids), None
-    )
-    if tweet is None:
-        log.info("All candidates already attempted today")
-        return
-    attempted_ids.add(tweet["id"])
-
-    author = tweet.get("author_username", "")
-    log.info(
-        "Selected tweet %s by @%s (score=%s, likes=%s)",
-        tweet["id"],
-        author,
-        tweet.get("score"),
-        tweet.get("likes"),
-    )
-
-    draft = claude_drafter.draft_reply(tweet["text"], author or tweet.get("author_name", ""))
-    log.info("Drafted reply: %s", draft)
-
-    response = notifier.send_for_approval(tweet, draft, slot_number)
-
-    redo_count = 0
-    while response == "redo" and redo_count < 2:
-        redo_count += 1
-        log.info("Redo requested (%d/2), re-drafting", redo_count)
-        draft = claude_drafter.draft_reply(
-            tweet["text"], author or tweet.get("author_name", "")
+    try:
+        candidates = feed_scanner.find_top_tweets(
+            count=10, session=session, client=tw
         )
-        log.info("New draft: %s", draft)
-        response = notifier.send_for_approval(tweet, draft, slot_number)
+        if not candidates:
+            msg = (
+                f"No candidates found in slot #{slot_number} "
+                f"(fetched={session.fetched_count})"
+            )
+            log.info(msg)
+            session.finish("no_candidates", msg)
+            # Give the user visibility even when nothing was draftable
+            try:
+                notifier.send_info(
+                    "Marathi Responder",
+                    f"Slot #{slot_number}: no candidates "
+                    f"(fetched {session.fetched_count} tweets, all filtered out)",
+                )
+            except Exception:  # noqa: BLE001
+                pass
+            return
 
-    if response == "ok":
-        log.info("Approved — posting reply")
-        result = tw.post_reply(tweet["id"], draft)
-        log.info("Posted reply id=%s", result.get("id"))
-        _record_reply(tweet, draft)
-    elif response == "skip":
-        log.info("User skipped slot #%d", slot_number)
-    elif response == "timeout":
-        log.info("Approval timed out for slot #%d", slot_number)
-    else:
-        log.info("Response %r — not posting", response)
+        tweet = next(
+            (c for c in candidates if c["id"] not in attempted_ids), None
+        )
+        if tweet is None:
+            log.info("All candidates already attempted today")
+            session.finish("skipped", "All candidates already attempted today")
+            return
+        attempted_ids.add(tweet["id"])
+        session.record_selected(tweet)
+
+        author = tweet.get("author_username", "")
+        log.info(
+            "Selected tweet %s by @%s (score=%s, likes=%s)",
+            tweet["id"],
+            author,
+            tweet.get("score"),
+            tweet.get("likes"),
+        )
+
+        draft = claude_drafter.draft_reply(
+            tweet["text"],
+            author or tweet.get("author_name", ""),
+            session=session,
+        )
+        log.info("Drafted reply: %s", draft)
+
+        response = notifier.send_for_approval(tweet, draft, slot_number)
+        session.record_approval(response)
+
+        redo_count = 0
+        while response == "redo" and redo_count < 2:
+            redo_count += 1
+            log.info("Redo requested (%d/2), re-drafting", redo_count)
+            draft = claude_drafter.draft_reply(
+                tweet["text"],
+                author or tweet.get("author_name", ""),
+                session=session,
+                is_redo=True,
+            )
+            log.info("New draft: %s", draft)
+            response = notifier.send_for_approval(tweet, draft, slot_number)
+            session.record_approval(response)
+
+        if response == "ok":
+            log.info("Approved — posting reply")
+            result = tw.post_reply(tweet["id"], draft)
+            posted_id = str(result.get("id", ""))
+            log.info("Posted reply id=%s", posted_id)
+            _record_reply(tweet, draft)
+            session.record_posted(posted_id)
+            session.finish("posted", f"Posted reply id={posted_id}")
+        elif response == "skip":
+            log.info("User skipped slot #%d", slot_number)
+            session.finish("skipped", f"User skipped slot #{slot_number}")
+        elif response == "timeout":
+            log.info("Approval timed out for slot #%d", slot_number)
+            session.finish("timeout", f"Approval timed out for slot #{slot_number}")
+        else:
+            log.info("Response %r — not posting", response)
+            session.finish("skipped", f"Response {response!r} — not posting")
+    except Exception as e:  # noqa: BLE001
+        log.exception("Slot #%d failed: %s", slot_number, e)
+        session.finish("error", str(e))
+        raise
 
 
 # ---------------------------------------------------------------------------
@@ -179,16 +220,20 @@ def process_one_slot_now() -> None:
     approval → post (only if user approves). Safe to call while the
     main daily loop is also running — the replied_tweets.json writer
     is atomic and the ntfy approval loop gates any posting.
+
+    Uses the process-wide shared TwitterClient so the search-result
+    cache persists across repeated UI clicks and costs no extra X
+    reads within the cache TTL.
     """
-    tw = TwitterClient()
-    _process_one_slot(tw, slot_number=0, attempted_ids=set())
+    tw = get_shared_client()
+    _process_one_slot(tw, slot_number=0, attempted_ids=set(), trigger="manual")
 
 
 def run_daily_schedule() -> None:
     """Run forever: each day, schedule N slots at random times and process."""
     _install_signal_handlers()
     tz = ZoneInfo(config.TIMEZONE)
-    tw = TwitterClient()
+    tw = get_shared_client()
 
     while not _shutdown:
         now = datetime.now(tz)

@@ -3,8 +3,19 @@
 Two auth modes:
   - Bearer Token: for reading/searching tweets
   - OAuth 1.0a:   for posting replies (user context)
+
+Cost controls (X pay-per-use is billed per tweet returned):
+  - ``search_marathi_tweets`` defaults to ``config.SEARCH_MAX_RESULTS``
+    (30, down from 100) so scheduled runs cost ~70% fewer reads.
+  - Each client caches its most recent search result for
+    ``config.SEARCH_CACHE_TTL`` seconds; repeated "Run Now" clicks
+    in the webui within that window reuse the same data for free.
+  - ``get_shared_client()`` returns a module-level singleton so the
+    webui doesn't rebuild a client (and throw away its cache) on
+    every endpoint hit.
 """
 import logging
+import threading
 import time
 from typing import Any
 
@@ -41,6 +52,8 @@ class TwitterClient:
             access_token_secret=config.X_ACCESS_SECRET,
             wait_on_rate_limit=False,
         )
+        # (timestamp, results) — most recent search cached for TTL seconds
+        self._search_cache: tuple[float, list[dict[str, Any]]] | None = None
 
     # ------------------------------------------------------------------
     # Rate-limit-aware invoker
@@ -93,11 +106,37 @@ class TwitterClient:
     # ------------------------------------------------------------------
     # Search
     # ------------------------------------------------------------------
-    def search_marathi_tweets(self, max_results: int = 100) -> list[dict[str, Any]]:
+    def search_marathi_tweets(
+        self,
+        max_results: int | None = None,
+        use_cache: bool = True,
+    ) -> list[dict[str, Any]]:
         """Search recent Marathi tweets using bearer token.
 
         Returns a list of dicts with tweet + author info merged in.
+
+        If a previous result is still within ``config.SEARCH_CACHE_TTL``
+        seconds, that cached list is returned instead of hitting the X
+        API again. This is the main cost-saver for the webui's "Run
+        Now" button, which users tend to click repeatedly. Pass
+        ``use_cache=False`` to force a refresh (e.g. from a health
+        check path that wants a live signal).
         """
+        if max_results is None:
+            max_results = config.SEARCH_MAX_RESULTS
+
+        if use_cache and self._search_cache is not None:
+            ts, cached = self._search_cache
+            age = time.time() - ts
+            if age < config.SEARCH_CACHE_TTL:
+                # Empty lists are cached too — a dead feed shouldn't
+                # keep hammering the API for the same empty answer.
+                log.info(
+                    "Reusing cached search (%d tweets, age=%ds, ttl=%ds) — no X read",
+                    len(cached), int(age), config.SEARCH_CACHE_TTL,
+                )
+                return list(cached)
+
         # X search_recent_tweets: max_results per page is 10..100
         per_page = min(max(max_results, 10), 100)
         resp = self._call(
@@ -111,6 +150,9 @@ class TwitterClient:
 
         if not resp or resp.data is None:
             log.info("search_recent_tweets returned no tweets")
+            # Cache the empty result too so a dead feed doesn't cause
+            # repeated hits in the same TTL window
+            self._search_cache = (time.time(), [])
             return []
 
         # Build author lookup from includes
@@ -147,7 +189,11 @@ class TwitterClient:
                     "quotes": int(metrics.get("quote_count", 0) or 0),
                 }
             )
-        log.info("Fetched %d Marathi tweets from search", len(results))
+        log.info(
+            "Fetched %d Marathi tweets from X search (cached for %ds)",
+            len(results), config.SEARCH_CACHE_TTL,
+        )
+        self._search_cache = (time.time(), results)
         return results
 
     # ------------------------------------------------------------------
@@ -181,3 +227,24 @@ class TwitterClient:
             "id": str(data.get("id")),
             "text": data.get("text", ""),
         }
+
+
+# ---------------------------------------------------------------------------
+# Process-wide shared client
+# ---------------------------------------------------------------------------
+_shared_client: TwitterClient | None = None
+_shared_client_lock = threading.Lock()
+
+
+def get_shared_client() -> TwitterClient:
+    """Return a process-wide singleton ``TwitterClient``.
+
+    The webui calls this from multiple endpoints (run-now, health-check,
+    status) so the in-memory search cache is shared across clicks
+    instead of being rebuilt per request.
+    """
+    global _shared_client
+    with _shared_client_lock:
+        if _shared_client is None:
+            _shared_client = TwitterClient()
+        return _shared_client

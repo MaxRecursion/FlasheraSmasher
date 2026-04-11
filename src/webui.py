@@ -24,8 +24,8 @@ from zoneinfo import ZoneInfo
 
 from flask import Flask, jsonify, send_from_directory
 
-from . import claude_drafter, config, notifier, scheduler
-from .twitter_client import TwitterClient
+from . import claude_drafter, config, notifier, scheduler, session_log
+from .twitter_client import get_shared_client
 
 log = logging.getLogger(__name__)
 
@@ -231,6 +231,25 @@ def api_replied():
 
 
 # ---------------------------------------------------------------------------
+# Sessions — persistent per-slot timelines
+# ---------------------------------------------------------------------------
+@app.route("/api/sessions")
+def api_sessions():
+    """Return the most recent session summaries (newest first)."""
+    return jsonify({"sessions": session_log.list_recent(limit=25)})
+
+
+@app.route("/api/sessions/<session_id>")
+def api_session_detail(session_id: str):
+    """Return the full record for one session — fetched tweets,
+    filter stats, Claude calls, events timeline, outcome."""
+    data = session_log.load(session_id)
+    if data is None:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(data)
+
+
+# ---------------------------------------------------------------------------
 # Service control
 # ---------------------------------------------------------------------------
 @app.route("/api/service/<action>", methods=["POST"])
@@ -279,14 +298,16 @@ def _run_health_checks() -> dict[str, dict[str, Any]]:
     run("env", lambda: (config.validate_env() or "env vars present"))
 
     def _x_search() -> str:
-        tw = TwitterClient()
+        # Reuse the shared client + its cache so hammering "Health
+        # Check" does not burn X credits on every click
+        tw = get_shared_client()
         t = tw.search_marathi_tweets(max_results=10)
         if not t:
             raise RuntimeError("no tweets returned")
         return f"{len(t)} tweets; sample @{t[0]['author_username']}"
 
     def _x_auth() -> str:
-        me = TwitterClient().get_me()
+        me = get_shared_client().get_me()
         return f"@{me['username']} (id={me['id']})"
 
     def _anthropic() -> str:

@@ -4,7 +4,7 @@ import time
 
 import anthropic
 
-from . import config
+from . import config, session_log
 
 log = logging.getLogger(__name__)
 
@@ -42,12 +42,29 @@ def _extract_text(message) -> str:
     return "".join(parts).strip()
 
 
-def draft_reply(tweet_text: str, author_name: str) -> str:
-    """Ask Claude to draft a Marathi reply; retry once if too long."""
+def draft_reply(
+    tweet_text: str,
+    author_name: str,
+    session: "session_log.Session | None" = None,
+    is_redo: bool = False,
+) -> str:
+    """Ask Claude to draft a Marathi reply; retry once if too long.
+
+    If ``session`` is provided, every Claude API call (initial draft,
+    shorten-retry, and subsequent redos) is recorded with its full
+    system + user prompt and the response that came back. That's what
+    powers the Sessions panel in the webui — users can see exactly
+    what was sent to Claude and what Claude said.
+    """
     client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
     user_prompt = (
         f"Original tweet by @{author_name}:\n{tweet_text}\n\nWrite a reply."
     )
+
+    # Number this call relative to prior claude_calls on the session so
+    # redo attempts get a monotonically increasing attempt number.
+    existing = len(session.claude_calls) if session is not None else 0
+    kind = "redo" if is_redo else "draft"
 
     last_exc: Exception | None = None
     for attempt in range(1, 3):  # up to 2 API attempts
@@ -60,10 +77,24 @@ def draft_reply(tweet_text: str, author_name: str) -> str:
             )
             reply = _extract_text(message)
 
+            if session is not None:
+                session.record_claude_call(
+                    attempt=existing + 1,
+                    kind=kind,
+                    model=MODEL,
+                    system_prompt=SYSTEM_PROMPT,
+                    user_prompt=user_prompt,
+                    response=reply,
+                )
+
             if len(reply) > MAX_REPLY_CHARS:
                 log.info(
                     "Draft reply is %d chars, retrying for shorter reply",
                     len(reply),
+                )
+                shorten_instruction = (
+                    "तुझं उत्तर फार लांब आहे. कृपया 250 "
+                    "characters च्या आत फक्त reply दे."
                 )
                 message = client.messages.create(
                     model=MODEL,
@@ -74,14 +105,26 @@ def draft_reply(tweet_text: str, author_name: str) -> str:
                         {"role": "assistant", "content": reply},
                         {
                             "role": "user",
-                            "content": (
-                                "तुझं उत्तर फार लांब आहे. कृपया 250 "
-                                "characters च्या आत फक्त reply दे."
-                            ),
+                            "content": shorten_instruction,
                         },
                     ],
                 )
-                reply = _extract_text(message)
+                reply2 = _extract_text(message)
+                if session is not None:
+                    session.record_claude_call(
+                        attempt=existing + 2,
+                        kind="shorten",
+                        model=MODEL,
+                        system_prompt=SYSTEM_PROMPT,
+                        user_prompt=(
+                            f"[follow-up to shorten previous reply]\n"
+                            f"Original: {user_prompt}\n\n"
+                            f"Previous reply: {reply}\n\n"
+                            f"Instruction: {shorten_instruction}"
+                        ),
+                        response=reply2,
+                    )
+                reply = reply2
                 if len(reply) > MAX_REPLY_CHARS:
                     reply = reply[:MAX_REPLY_CHARS]
             return reply
@@ -90,6 +133,8 @@ def draft_reply(tweet_text: str, author_name: str) -> str:
             log.warning(
                 "Anthropic API error on attempt %d: %s", attempt, e
             )
+            if session is not None:
+                session.event("error", f"Anthropic API error attempt {attempt}: {e}")
             time.sleep(5)
     assert last_exc is not None
     raise last_exc
