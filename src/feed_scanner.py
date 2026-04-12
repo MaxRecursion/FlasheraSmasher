@@ -129,6 +129,7 @@ def _filter_and_rank(
         "raw": len(tweets),
         "already_replied": 0,
         "hindi_skipped": 0,
+        "reply_restricted": 0,
         "below_followers": 0,
         "below_likes": 0,
         "kept": 0,
@@ -143,6 +144,18 @@ def _filter_and_rank(
             log.debug(
                 "Skipping Hindi tweet %s by @%s",
                 t.get("id"), t.get("author_username", "?"),
+            )
+            continue
+        # Skip tweets whose author has restricted replies to mentioned users
+        # or people they follow — the bot is neither, so POST /2/tweets would
+        # return 403 "not been mentioned".  Pre-filtering here avoids wasting
+        # a Claude API call + ntfy approval notification on an un-postable tweet.
+        reply_settings = t.get("reply_settings", "everyone")
+        if reply_settings != "everyone":
+            stats["reply_restricted"] += 1
+            log.debug(
+                "Skipping reply-restricted tweet %s by @%s (reply_settings=%s)",
+                t.get("id"), t.get("author_username", "?"), reply_settings,
             )
             continue
         if t["author_followers"] < min_followers:
@@ -228,6 +241,7 @@ def find_top_tweets(
             "retweets": t["retweets"],
             "score": t["score"],
             "url": _build_url(t["author_username"], t["id"]),
+            "reply_settings": t.get("reply_settings", "everyone"),
         }
         for t in ranked[:count]
     ]

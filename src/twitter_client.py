@@ -36,7 +36,7 @@ SEARCH_QUERY = (
     "lang:mr -is:retweet -is:reply"
 )
 
-TWEET_FIELDS = ["id", "text", "author_id", "created_at", "public_metrics"]
+TWEET_FIELDS = ["id", "text", "author_id", "created_at", "public_metrics", "reply_settings"]
 USER_FIELDS = ["id", "name", "username", "public_metrics", "verified"]
 EXPANSIONS = ["author_id"]
 
@@ -85,6 +85,12 @@ class TwitterClient:
                     sleep_for,
                 )
                 time.sleep(sleep_for)
+            except (tweepy.Forbidden, tweepy.Unauthorized) as e:
+                # 401/403 = permanent auth or permission error (wrong
+                # keys, reply-restricted tweet, etc.). Never retryable.
+                log.warning("HTTP %s (not retrying): %s",
+                            getattr(e, 'api_codes', ''), e)
+                raise
             except tweepy.TweepyException as e:
                 last_exc = e
                 log.warning(
@@ -193,6 +199,9 @@ class TwitterClient:
                     "retweets": int(metrics.get("retweet_count", 0) or 0),
                     "replies": int(metrics.get("reply_count", 0) or 0),
                     "quotes": int(metrics.get("quote_count", 0) or 0),
+                    # "everyone" | "mentionedUsers" | "following"
+                    # If not "everyone" the bot cannot reply without being mentioned first.
+                    "reply_settings": getattr(t, "reply_settings", "everyone") or "everyone",
                 }
             )
         log.info(

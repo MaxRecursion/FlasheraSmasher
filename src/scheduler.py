@@ -10,12 +10,16 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+import tweepy
+
 from . import claude_drafter, config, feed_scanner, notifier, session_log
 from .twitter_client import TwitterClient, get_shared_client
 
 log = logging.getLogger(__name__)
 
 _shutdown = False
+
+SEEN_TWEETS_MAX = 500
 
 
 def _install_signal_handlers() -> None:
@@ -64,6 +68,44 @@ def _record_reply(tweet: dict[str, Any], reply_text: str) -> None:
         }
     )
     _save_replied_atomic(records)
+
+
+# ---------------------------------------------------------------------------
+# seen_tweets.json IO — tracks every tweet the bot attempted, regardless
+# of outcome (posted / skipped / timeout / classifier-rejected / 403).
+# Merged with replied_tweets at filter time so the same candidate never
+# resurfaces across runs, slots, or process restarts.
+# ---------------------------------------------------------------------------
+def _load_seen_records() -> list[dict[str, Any]]:
+    path = config.SEEN_TWEETS_FILE
+    if not path.exists():
+        return []
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        log.warning("Could not read seen_tweets.json: %s", e)
+        return []
+
+
+def _record_seen_atomic(tweet_id: str, outcome: str) -> None:
+    """Append a tweet-id + outcome to seen_tweets.json (atomic write)."""
+    records = _load_seen_records()
+    records.append(
+        {
+            "tweet_id": str(tweet_id),
+            "outcome": outcome,
+            "seen_at": datetime.now(ZoneInfo(config.TIMEZONE)).isoformat(),
+        }
+    )
+    # Trim to most recent N entries
+    if len(records) > SEEN_TWEETS_MAX:
+        records = records[-SEEN_TWEETS_MAX:]
+    path: Path = config.SEEN_TWEETS_FILE
+    tmp = path.with_suffix(".json.tmp")
+    with tmp.open("w", encoding="utf-8") as f:
+        json.dump(records, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, path)
 
 
 # ---------------------------------------------------------------------------
@@ -116,7 +158,6 @@ def _sleep_until(target: datetime) -> None:
 def _process_one_slot(
     tw: TwitterClient,
     slot_number: int,
-    attempted_ids: set[str],
     trigger: str = "scheduled",
 ) -> None:
     session = session_log.start(trigger=trigger, slot_number=slot_number)
@@ -133,7 +174,6 @@ def _process_one_slot(
             )
             log.info(msg)
             session.finish("no_candidates", msg)
-            # Give the user visibility even when nothing was draftable
             try:
                 notifier.send_info(
                     "Marathi Responder",
@@ -144,16 +184,47 @@ def _process_one_slot(
                 pass
             return
 
-        tweet = next(
-            (c for c in candidates if c["id"] not in attempted_ids), None
-        )
-        if tweet is None:
-            log.info("All candidates already attempted today")
-            session.finish("skipped", "All candidates already attempted today")
-            return
-        attempted_ids.add(tweet["id"])
-        session.record_selected(tweet)
+        # -----------------------------------------------------------------
+        # Walk candidates in rank order through the Claude classifier.
+        # The first one that is both Marathi AND about Pune is selected.
+        # Rejected candidates are persisted to seen_tweets so they don't
+        # resurface on subsequent runs.
+        # -----------------------------------------------------------------
+        tweet = None
+        for cand in candidates:
+            clf = claude_drafter.classify_tweet(cand["text"], session=session)
+            cand_label = f"{cand['id']} @{cand.get('author_username', '?')}"
+            if not clf["is_marathi"]:
+                log.info("Skip %s — not Marathi (%s)", cand_label, clf["reason"])
+                session.event("info", f"Skip {cand_label} — not Marathi: {clf['reason']}")
+                _record_seen_atomic(cand["id"], "not_marathi")
+                continue
+            if not clf["is_about_pune"]:
+                log.info("Skip %s — not about Pune (%s)", cand_label, clf["reason"])
+                session.event("info", f"Skip {cand_label} — not about Pune: {clf['reason']}")
+                _record_seen_atomic(cand["id"], "not_pune")
+                continue
+            tweet = cand
+            session.event(
+                "info",
+                f"Classified {cand_label} as Pune+Marathi: {clf['reason']}",
+            )
+            break
 
+        if tweet is None:
+            msg = (
+                f"Slot #{slot_number}: {len(candidates)} candidates but "
+                f"none passed Pune/Marathi classifier"
+            )
+            log.info(msg)
+            session.finish("no_candidates", msg)
+            try:
+                notifier.send_info("Marathi Responder", msg)
+            except Exception:  # noqa: BLE001
+                pass
+            return
+
+        session.record_selected(tweet)
         author = tweet.get("author_username", "")
         log.info(
             "Selected tweet %s by @%s (score=%s, likes=%s)",
@@ -189,20 +260,44 @@ def _process_one_slot(
 
         if response == "ok":
             log.info("Approved — posting reply")
-            result = tw.post_reply(tweet["id"], draft)
-            posted_id = str(result.get("id", ""))
-            log.info("Posted reply id=%s", posted_id)
-            _record_reply(tweet, draft)
-            session.record_posted(posted_id)
-            session.finish("posted", f"Posted reply id={posted_id}")
+            try:
+                result = tw.post_reply(tweet["id"], draft)
+                posted_id = str(result.get("id", ""))
+                log.info("Posted reply id=%s", posted_id)
+                _record_reply(tweet, draft)
+                _record_seen_atomic(tweet["id"], "posted")
+                session.record_posted(posted_id)
+                session.finish("posted", f"Posted reply id={posted_id}")
+            except tweepy.Forbidden as e:
+                errmsg = str(e)
+                log.warning(
+                    "Cannot reply to %s (reply-restricted): %s",
+                    tweet["id"], errmsg,
+                )
+                _record_seen_atomic(tweet["id"], "reply_restricted")
+                session.finish(
+                    "error",
+                    f"Reply restricted by tweet author: {errmsg[:200]}",
+                )
+                try:
+                    notifier.send_info(
+                        "Marathi Responder",
+                        f"Slot #{slot_number}: tweet author restricts replies. "
+                        f"Will pick a different tweet next run.",
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
         elif response == "skip":
             log.info("User skipped slot #%d", slot_number)
+            _record_seen_atomic(tweet["id"], "skipped")
             session.finish("skipped", f"User skipped slot #{slot_number}")
         elif response == "timeout":
             log.info("Approval timed out for slot #%d", slot_number)
+            _record_seen_atomic(tweet["id"], "timeout")
             session.finish("timeout", f"Approval timed out for slot #{slot_number}")
         else:
             log.info("Response %r — not posting", response)
+            _record_seen_atomic(tweet["id"], f"response_{response}")
             session.finish("skipped", f"Response {response!r} — not posting")
     except Exception as e:  # noqa: BLE001
         log.exception("Slot #%d failed: %s", slot_number, e)
@@ -216,17 +311,15 @@ def _process_one_slot(
 def process_one_slot_now() -> None:
     """Run one reply slot on demand (used by the webui control panel).
 
-    Runs through the full pipeline once: search → rank → draft → ntfy
-    approval → post (only if user approves). Safe to call while the
-    main daily loop is also running — the replied_tweets.json writer
-    is atomic and the ntfy approval loop gates any posting.
+    Runs through the full pipeline once: search -> rank -> classify ->
+    draft -> ntfy approval -> post (only if user approves).  Safe to
+    call while the main daily loop is also running.
 
     Uses the process-wide shared TwitterClient so the search-result
-    cache persists across repeated UI clicks and costs no extra X
-    reads within the cache TTL.
+    cache persists across repeated UI clicks.
     """
     tw = get_shared_client()
-    _process_one_slot(tw, slot_number=0, attempted_ids=set(), trigger="manual")
+    _process_one_slot(tw, slot_number=0, trigger="manual")
 
 
 def run_daily_schedule() -> None:
@@ -245,7 +338,6 @@ def run_daily_schedule() -> None:
             ", ".join(t.strftime("%H:%M") for t in times),
         )
 
-        attempted_ids: set[str] = set()
         for i, slot_time in enumerate(times, start=1):
             if _shutdown:
                 return
@@ -263,7 +355,7 @@ def run_daily_schedule() -> None:
             if _shutdown:
                 return
             try:
-                _process_one_slot(tw, i, attempted_ids)
+                _process_one_slot(tw, i)
             except Exception as e:  # noqa: BLE001 — never crash loop
                 log.exception("Error in slot #%d: %s", i, e)
             time.sleep(30)  # gentle pacing between slots
