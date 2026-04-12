@@ -33,7 +33,7 @@ PLIST_LABEL = "com.akshay.marathi-responder"
 PLIST_PATH = Path.home() / "Library" / "LaunchAgents" / f"{PLIST_LABEL}.plist"
 WEBUI_DIR = Path(__file__).parent / "webui_static"
 
-HOST = "127.0.0.1"
+HOST = "0.0.0.0"
 PORT = 8765
 
 app = Flask(

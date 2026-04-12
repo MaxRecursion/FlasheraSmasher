@@ -7,6 +7,7 @@ with looser thresholds until at least one unreplied candidate survives
 """
 import json
 import logging
+import re
 from typing import Any
 
 from . import config, session_log
@@ -14,17 +15,61 @@ from .twitter_client import TwitterClient
 
 log = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Hindi language guard
+# ---------------------------------------------------------------------------
+# Twitter's lang:mr filter is unreliable — it regularly passes through Hindi
+# tweets because many Marathi search keywords also appear in Hindi text.
+# We guard against this by scanning candidate tweets for Hindi-specific
+# function words that do not exist in Marathi.  Any tweet containing at
+# least one of these markers is almost certainly Hindi and is discarded.
+#
+# The key discriminators:
+#   है  / हैं  — Hindi 3rd-person present copula  (Marathi: आहे / आहेत)
+#   नहीं       — Hindi negation                   (Marathi: नाही)
+#   था / थे / थी — Hindi past-tense copula        (Marathi: होता / होते / होती)
+#   मैं / मुझे  — Hindi 1st-person pronouns       (Marathi: मी / मला)
+#   हूं / हूँ   — Hindi "I am"                   (Marathi: आहे)
+#   लेकिन      — Hindi "but"                      (Marathi: पण / परंतु)
+#   क्योंकि    — Hindi "because"                  (Marathi: कारण / म्हणून)
+#   इसलिए      — Hindi "therefore"                (Marathi: म्हणून)
+_HINDI_MARKERS: frozenset[str] = frozenset({
+    "है", "हैं", "नहीं",
+    "था", "थे", "थी",
+    "मैं", "मुझे", "हूं", "हूँ",
+    "लेकिन", "क्योंकि", "इसलिए",
+    "उनका", "उनके", "उनकी", "उन्हें", "उनसे", "उन्होंने",
+    "कीजिए", "दीजिए",
+})
+
+# Split on whitespace, Devanagari danda/double-danda, and common punctuation
+_TOKEN_SPLIT_RE = re.compile(r'[\s\u0964\u0965,।॥!?@#&*()\[\]{}<>]+')
+
+
+def _is_hindi(text: str) -> bool:
+    """Return True if *text* appears to be Hindi rather than Marathi.
+
+    Tokenises the text and checks for Hindi-specific function words that
+    do not appear in Marathi.  A single match is sufficient to classify
+    the tweet as Hindi — false positives on genuine Marathi are
+    extremely unlikely given the chosen marker set.
+    """
+    if not text:
+        return False
+    tokens = set(_TOKEN_SPLIT_RE.split(text))
+    tokens.discard("")
+    return bool(tokens & _HINDI_MARKERS)
+
 
 # Relaxation ladder: each row is (min_followers, min_likes, label).
-# Processed in order; the first level with ≥1 unreplied candidate wins.
-# Level 3 (0, 0) is the "guarantee" step: any unreplied tweet counts,
-# so as long as the raw fetch returned *anything* new we always have
-# a candidate to draft for.
+# Processed in order; the first level with ≥1 unseen candidate wins.
+# With the lowered default floor (100 followers, 0 likes) the ladder
+# collapses to two steps — strict config thresholds, then an absolute
+# zero-floor safety net so a raw fetch that returned anything new is
+# guaranteed to produce a candidate list.
 def _relaxation_ladder() -> list[tuple[int, int, str]]:
     return [
         (config.MIN_AUTHOR_FOLLOWERS, config.MIN_TWEET_LIKES, "strict"),
-        (2000, 20, "relaxed"),
-        (500, 5, "loose"),
         (0, 0, "any"),
     ]
 
@@ -50,6 +95,26 @@ def _load_replied_ids() -> set[str]:
         return set()
 
 
+def _load_seen_ids() -> set[str]:
+    """Return every tweet id the bot has already *attempted* — posted,
+    skipped, timed out, or rejected by the Pune/Marathi classifier.
+
+    This is distinct from ``replied_tweets.json`` (successful posts
+    only); the two sets are unioned by ``find_top_tweets`` so the same
+    candidate never surfaces twice across runs, slots, or restarts.
+    """
+    path = config.SEEN_TWEETS_FILE
+    if not path.exists():
+        return set()
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            records = json.load(f)
+        return {str(r.get("tweet_id")) for r in records if r.get("tweet_id")}
+    except (OSError, json.JSONDecodeError) as e:
+        log.warning("Could not load seen_tweets.json: %s", e)
+        return set()
+
+
 def _build_url(username: str, tweet_id: str) -> str:
     return f"https://x.com/{username or 'i'}/status/{tweet_id}"
 
@@ -63,6 +128,7 @@ def _filter_and_rank(
     stats = {
         "raw": len(tweets),
         "already_replied": 0,
+        "hindi_skipped": 0,
         "below_followers": 0,
         "below_likes": 0,
         "kept": 0,
@@ -71,6 +137,13 @@ def _filter_and_rank(
     for t in tweets:
         if t["id"] in already_replied:
             stats["already_replied"] += 1
+            continue
+        if _is_hindi(t.get("text", "")):
+            stats["hindi_skipped"] += 1
+            log.debug(
+                "Skipping Hindi tweet %s by @%s",
+                t.get("id"), t.get("author_username", "?"),
+            )
             continue
         if t["author_followers"] < min_followers:
             stats["below_followers"] += 1
@@ -101,7 +174,10 @@ def find_top_tweets(
     """
     client = client or TwitterClient()
     raw = client.search_marathi_tweets()
-    already_replied = _load_replied_ids()
+    # Union of successfully-replied + every previously attempted tweet
+    # (skipped, timed out, classifier-rejected). Ensures the same
+    # candidate isn't re-surfaced after a SKIP.
+    already_replied = _load_replied_ids() | _load_seen_ids()
 
     if session is not None:
         session.record_fetched(raw)

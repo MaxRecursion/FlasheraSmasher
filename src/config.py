@@ -9,6 +9,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 LOGS_DIR = PROJECT_ROOT / "logs"
 REPLIED_TWEETS_FILE = DATA_DIR / "replied_tweets.json"
+# Tracks every tweet the bot has *attempted* — posted, skipped, timed out,
+# or rejected by the Pune/Marathi classifier. Merged with replied_tweets
+# at filter time so the same candidate never resurfaces across runs.
+SEEN_TWEETS_FILE = DATA_DIR / "seen_tweets.json"
 ENV_FILE = PROJECT_ROOT / ".env"
 
 # Create required directories
@@ -67,8 +71,11 @@ NTFY_TOPIC = _get("NTFY_TOPIC")
 NTFY_BASE_URL = "https://ntfy.sh"
 
 # Bot settings
-MIN_AUTHOR_FOLLOWERS = int(_get("MIN_AUTHOR_FOLLOWERS", "5000") or "5000")
-MIN_TWEET_LIKES = int(_get("MIN_TWEET_LIKES", "50") or "50")
+# Follower floor is deliberately low — the bot is now topical (Pune /
+# Marathi) rather than reach-optimised, so any account with roughly
+# triple-digit+ followers is fair game. Env override still wins.
+MIN_AUTHOR_FOLLOWERS = int(_get("MIN_AUTHOR_FOLLOWERS", "100") or "100")
+MIN_TWEET_LIKES = int(_get("MIN_TWEET_LIKES", "0") or "0")
 DAILY_REPLY_COUNT = int(_get("DAILY_REPLY_COUNT", "5") or "5")
 
 # X API cost controls

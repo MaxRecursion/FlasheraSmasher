@@ -1,4 +1,5 @@
 """Draft Marathi replies using the Anthropic Claude API."""
+import json as _json
 import logging
 import time
 
@@ -9,8 +10,26 @@ from . import config, session_log
 log = logging.getLogger(__name__)
 
 MODEL = "claude-sonnet-4-20250514"
+# Cheap fast model for the Pune/Marathi relevance classifier — this
+# runs once per candidate until one passes, so we want it to be cheap.
+CLASSIFY_MODEL = "claude-haiku-4-5-20251001"
 MAX_TOKENS = 400
 MAX_REPLY_CHARS = 280
+
+CLASSIFY_SYSTEM_PROMPT = """You are a strict tweet classifier. Decide two things about the given tweet:
+
+1. is_marathi: Is the tweet primarily written in Marathi?
+   - Must be Devanagari script with Marathi grammar/vocabulary.
+   - Hindi, Sanskrit, English, or transliterated tweets are NOT Marathi.
+   - Mixed-language tweets are Marathi only if Marathi clearly dominates.
+
+2. is_about_pune: Is the tweet actually ABOUT Pune?
+   - Topics that qualify: events in Pune, opinions about Pune, Pune traffic, Pune rains/weather, Pune Metro, Pune civic issues (PMC/PCMC), Pune food/culture, Pune politics, Pune news, daily life in Pune, Pune neighbourhoods (Kothrud, Hinjewadi, Baner, Shivajinagar, Koregaon Park, etc.).
+   - A tweet that merely mentions the word पुणे / Pune in passing — e.g. as one of many cities — is NOT "about Pune". The tweet's main topic must be Pune.
+
+Respond with ONLY a single valid JSON object, no markdown, no code fences, no commentary. Schema:
+{"is_marathi": true|false, "is_about_pune": true|false, "reason": "<one short English sentence, under 80 chars>"}
+"""
 
 SYSTEM_PROMPT = """तू एक पुण्याचा विनोदी ट्विटर वापरकर्ता आहेस. तुला मराठी ट्विट्सना
 मजेशीर replies द्यायचे आहेत.
@@ -22,7 +41,9 @@ Rules:
 - Stay relevant to the original tweet's topic
 - Never be offensive, political, casteist, or religious
 - Never mock the original author
-- Maximum 1-2 emoji, only if natural
+- NO emojis whatsoever — do not output any emoji or Unicode symbol characters
+- Use ONLY Devanagari script letters and standard ASCII punctuation (. , ! ? : ; - )
+- Do not use any special Unicode characters, symbols, emoticons, or pictographs
 - No hashtags in replies
 - Sound like a real person, not a bot
 - If the tweet is about a serious/sad topic, be supportive
@@ -138,3 +159,76 @@ def draft_reply(
             time.sleep(5)
     assert last_exc is not None
     raise last_exc
+
+
+def classify_tweet(
+    tweet_text: str,
+    session: "session_log.Session | None" = None,
+) -> dict:
+    """Ask Claude whether a tweet is Marathi AND about Pune.
+
+    Returns a dict ``{"is_marathi": bool, "is_about_pune": bool,
+    "reason": str}``. On any API / JSON failure returns both flags
+    False so the candidate is conservatively rejected rather than
+    drafted against.
+
+    Every call is recorded on the session (kind="classify") so the
+    webui Sessions panel shows the full relevance decision trail.
+    """
+    client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    user_prompt = f"Tweet:\n{tweet_text}\n\nClassify."
+    existing = len(session.claude_calls) if session is not None else 0
+
+    raw = ""
+    try:
+        message = client.messages.create(
+            model=CLASSIFY_MODEL,
+            max_tokens=150,
+            system=CLASSIFY_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
+        raw = _extract_text(message)
+    except anthropic.APIError as e:
+        log.warning("classify_tweet API error: %s", e)
+        if session is not None:
+            session.event("error", f"classify_tweet API error: {e}")
+        return {
+            "is_marathi": False,
+            "is_about_pune": False,
+            "reason": f"API error: {e}",
+        }
+
+    if session is not None:
+        session.record_claude_call(
+            attempt=existing + 1,
+            kind="classify",
+            model=CLASSIFY_MODEL,
+            system_prompt=CLASSIFY_SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            response=raw,
+        )
+
+    # Models sometimes wrap JSON in ```json fences despite instructions.
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.strip("`").strip()
+        if cleaned.lower().startswith("json"):
+            cleaned = cleaned[4:].strip()
+
+    try:
+        parsed = _json.loads(cleaned)
+    except _json.JSONDecodeError:
+        log.warning("classify_tweet produced non-JSON: %r", raw)
+        if session is not None:
+            session.event("warn", f"classify_tweet non-JSON: {raw[:120]!r}")
+        return {
+            "is_marathi": False,
+            "is_about_pune": False,
+            "reason": "classifier returned non-JSON",
+        }
+
+    return {
+        "is_marathi": bool(parsed.get("is_marathi")),
+        "is_about_pune": bool(parsed.get("is_about_pune")),
+        "reason": str(parsed.get("reason", ""))[:120],
+    }

@@ -25,9 +25,15 @@ from . import config
 
 log = logging.getLogger(__name__)
 
+# Pune-focused Marathi query. ``lang:mr`` alone is rejected by the
+# search endpoint (see README), so Marathi keyword OR-clauses anchor it.
+# The keywords are all Pune variants (locative, demonym, adjective,
+# English spelling, "Pune Metro" compound). Anything the raw fetch
+# returns that isn't *actually* about Pune gets filtered downstream by
+# the Claude classifier in ``claude_drafter.classify_tweet``.
 SEARCH_QUERY = (
-    "मराठी OR पुणे OR महाराष्ट्र OR मुंबई OR भारत OR सरकार OR लोक "
-    "OR नमस्कार OR आज OR भाऊ lang:mr -is:retweet -is:reply"
+    "(पुणे OR पुण्यात OR पुण्यातील OR पुणेकर OR पुणेरी OR Pune OR \"पुणे मेट्रो\") "
+    "lang:mr -is:retweet -is:reply"
 )
 
 TWEET_FIELDS = ["id", "text", "author_id", "created_at", "public_metrics"]
