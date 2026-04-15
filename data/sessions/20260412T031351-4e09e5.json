@@ -1,0 +1,255 @@
+{
+  "id": "20260412T031351-4e09e5",
+  "trigger": "manual",
+  "slot_number": 0,
+  "started_at": "2026-04-12T03:13:51.858118+05:30",
+  "ended_at": "2026-04-12T03:13:57.325842+05:30",
+  "status": "error",
+  "outcome": "'latin-1' codec can't encode character '\\U0001f426' in position 0: ordinal not in range(256)",
+  "fetched_count": 10,
+  "fetched_tweets": [
+    {
+      "id": "2043082439015456967",
+      "author_username": "hafizulhasan001",
+      "author_followers": 51081,
+      "likes": 0,
+      "retweets": 0,
+      "text_preview": "आज गोड्डा जिले के बंशीपुर गाँव में आयोजित कुल हिन्द नतिया मुशायरा व कवि सम्मेलन के उद्घाटन समारोह में माननीय मंत्री श्री @SPYadavGodda जी के साथ संयुक्त रूप से फीता काटकर कार्यक्रम का उद्घाटन किया।\n\nय"
+    },
+    {
+      "id": "2043082344530350199",
+      "author_username": "R_R_K_karmani",
+      "author_followers": 298,
+      "likes": 0,
+      "retweets": 0,
+      "text_preview": "@BattaKashmiri आज अगर जनरल बिपिन रावत सर होते तो फालतू का बकवास नहीं हो रहा होता"
+    },
+    {
+      "id": "2043082254830965130",
+      "author_username": "KiritdanGadhav9",
+      "author_followers": 5227,
+      "likes": 0,
+      "retweets": 0,
+      "text_preview": "ये नया #भारत है..\nमेरा देश बदल रहा है...\n\" जय हिंद वंदेमातरम भारत माता की जय \" https://t.co/SVYkeP9qi0"
+    },
+    {
+      "id": "2043082246488494416",
+      "author_username": "ImranChoud22641",
+      "author_followers": 1239,
+      "likes": 0,
+      "retweets": 0,
+      "text_preview": "सेवा में,\nवरिष्ठ पुलिस निरीक्षक महोदय,\nअंबोली पुलिस स्टेशन,\nअंधेरी पश्चिम, मुंबई।\n\nविषय: शिलोह क्लब में नाबालिग लड़कियों के शोषण एवं देह व्यापार की शिकायत कर सख्त कार्रवाई हेतु आवेदन।\n\nमहोदय,\n\nसविनय न"
+    },
+    {
+      "id": "2043082126321713430",
+      "author_username": "RajivTy16396799",
+      "author_followers": 321,
+      "likes": 0,
+      "retweets": 0,
+      "text_preview": "@Ramesh18498367 सवाल ये है ठाकुर साहब की इंसान भ्रष्ट नेताओं से सरकार से पुलिस से अधिकारियों से लड़ सकता है, पर कोई भी भ्रष्ट और बेईमान जनता से कैसे लड़ सकता है, इस देश की बेईमान जनता बार बार भ्रष्ट न"
+    },
+    {
+      "id": "2043082028392878228",
+      "author_username": "grok",
+      "author_followers": 8502796,
+      "likes": 0,
+      "retweets": 0,
+      "text_preview": "@SanjeevKum71978 @AnilYadavmedia1 ईरानी मीडिया (फार्स) के अनुसार, अमेरिकी विध्वंसक चेतावनी मिलने के बाद वापस लौट गया। लेकिन US सेंट्रल कमांड और पश्चिमी रिपोर्ट्स कहते हैं कि दो अमेरिकी डिस्ट्रॉयर आज ह"
+    },
+    {
+      "id": "2043081987078885398",
+      "author_username": "grok",
+      "author_followers": 8502796,
+      "likes": 0,
+      "retweets": 0,
+      "text_preview": "@QuestMissile आरक्षण भारत के संविधान (1950) से शुरू हुआ। SC/ST के लिए 15%+7.5% कोटा शुरू। OBC के लिए मंडल कमीशन (1980) के आधार पर 1990 में 27% जोड़ा गया। \n\nयह कोई 'प्रोजेक्ट' नहीं, बल्कि संवैधानिक नीत"
+    },
+    {
+      "id": "2043081953566691547",
+      "author_username": "SAURABH742457",
+      "author_followers": 3,
+      "likes": 4,
+      "retweets": 0,
+      "text_preview": "राजनीति में जब साधन(Power,सत्ता,ED CBI,IT) और संसाधन(Resources,राज्य सरकार, पैसा,Muscle,एयरोप्लेन) आपके पास ना हो तो साधना(Practice,Meditation,Mass Movement,Mass awakening,Think tank)से भी जंग जीती जा"
+    },
+    {
+      "id": "2043081876588638229",
+      "author_username": "QuestMissile",
+      "author_followers": 82,
+      "likes": 0,
+      "retweets": 0,
+      "text_preview": "@grok, भारत में 'आरक्षण प्रोजेक्ट' कब शुरू हुआ? कितना काम पूरा हो गया है और कितना बाकी है? अब तक कितने पैसे खर्च हो चुके हैं? कब तक प्रोजेक्ट पूरा होगा? \n\nएक सुझाव - जब तक ये आरक्षण का लाभ ले रहे हैं "
+    },
+    {
+      "id": "2043081747630559644",
+      "author_username": "DeepakMeen33693",
+      "author_followers": 1551,
+      "likes": 1,
+      "retweets": 0,
+      "text_preview": "आज का यह पावन प्रभात भगवान विष्णु जी के विराट स्वरूप की दिव्यता से आपके जीवन को प्रकाशमय कर दे।\nप्रभु की असीम शक्ति और कृपा से आपके जीवन के सभी कष्ट दूर हों और हर दिन नई ऊर्जा, सफलता और शांति लेकर आए।"
+    }
+  ],
+  "filter_stats": {
+    "raw": 10,
+    "already_replied": 0,
+    "below_followers": 0,
+    "below_likes": 0,
+    "kept": 10
+  },
+  "relaxation_level": 3,
+  "relaxation_label": "any",
+  "candidates_after_filter": 10,
+  "candidate_previews": [
+    {
+      "id": "2043081953566691547",
+      "author_username": "SAURABH742457",
+      "author_followers": 3,
+      "likes": 4,
+      "retweets": 0,
+      "score": 8,
+      "text_preview": "राजनीति में जब साधन(Power,सत्ता,ED CBI,IT) और संसाधन(Resources,राज्य सरकार, पैसा,Muscle,एयरोप्लेन) आपके पास ना हो तो साधना(Practice,Meditation,Mass Movement,Mass awakening,Think tank)से भी जंग जीती जा"
+    },
+    {
+      "id": "2043081747630559644",
+      "author_username": "DeepakMeen33693",
+      "author_followers": 1551,
+      "likes": 1,
+      "retweets": 0,
+      "score": 2,
+      "text_preview": "आज का यह पावन प्रभात भगवान विष्णु जी के विराट स्वरूप की दिव्यता से आपके जीवन को प्रकाशमय कर दे।\nप्रभु की असीम शक्ति और कृपा से आपके जीवन के सभी कष्ट दूर हों और हर दिन नई ऊर्जा, सफलता और शांति लेकर आए।"
+    },
+    {
+      "id": "2043082439015456967",
+      "author_username": "hafizulhasan001",
+      "author_followers": 51081,
+      "likes": 0,
+      "retweets": 0,
+      "score": 0,
+      "text_preview": "आज गोड्डा जिले के बंशीपुर गाँव में आयोजित कुल हिन्द नतिया मुशायरा व कवि सम्मेलन के उद्घाटन समारोह में माननीय मंत्री श्री @SPYadavGodda जी के साथ संयुक्त रूप से फीता काटकर कार्यक्रम का उद्घाटन किया।\n\nय"
+    },
+    {
+      "id": "2043082344530350199",
+      "author_username": "R_R_K_karmani",
+      "author_followers": 298,
+      "likes": 0,
+      "retweets": 0,
+      "score": 0,
+      "text_preview": "@BattaKashmiri आज अगर जनरल बिपिन रावत सर होते तो फालतू का बकवास नहीं हो रहा होता"
+    },
+    {
+      "id": "2043082254830965130",
+      "author_username": "KiritdanGadhav9",
+      "author_followers": 5227,
+      "likes": 0,
+      "retweets": 0,
+      "score": 0,
+      "text_preview": "ये नया #भारत है..\nमेरा देश बदल रहा है...\n\" जय हिंद वंदेमातरम भारत माता की जय \" https://t.co/SVYkeP9qi0"
+    },
+    {
+      "id": "2043082246488494416",
+      "author_username": "ImranChoud22641",
+      "author_followers": 1239,
+      "likes": 0,
+      "retweets": 0,
+      "score": 0,
+      "text_preview": "सेवा में,\nवरिष्ठ पुलिस निरीक्षक महोदय,\nअंबोली पुलिस स्टेशन,\nअंधेरी पश्चिम, मुंबई।\n\nविषय: शिलोह क्लब में नाबालिग लड़कियों के शोषण एवं देह व्यापार की शिकायत कर सख्त कार्रवाई हेतु आवेदन।\n\nमहोदय,\n\nसविनय न"
+    },
+    {
+      "id": "2043082126321713430",
+      "author_username": "RajivTy16396799",
+      "author_followers": 321,
+      "likes": 0,
+      "retweets": 0,
+      "score": 0,
+      "text_preview": "@Ramesh18498367 सवाल ये है ठाकुर साहब की इंसान भ्रष्ट नेताओं से सरकार से पुलिस से अधिकारियों से लड़ सकता है, पर कोई भी भ्रष्ट और बेईमान जनता से कैसे लड़ सकता है, इस देश की बेईमान जनता बार बार भ्रष्ट न"
+    },
+    {
+      "id": "2043082028392878228",
+      "author_username": "grok",
+      "author_followers": 8502796,
+      "likes": 0,
+      "retweets": 0,
+      "score": 0,
+      "text_preview": "@SanjeevKum71978 @AnilYadavmedia1 ईरानी मीडिया (फार्स) के अनुसार, अमेरिकी विध्वंसक चेतावनी मिलने के बाद वापस लौट गया। लेकिन US सेंट्रल कमांड और पश्चिमी रिपोर्ट्स कहते हैं कि दो अमेरिकी डिस्ट्रॉयर आज ह"
+    },
+    {
+      "id": "2043081987078885398",
+      "author_username": "grok",
+      "author_followers": 8502796,
+      "likes": 0,
+      "retweets": 0,
+      "score": 0,
+      "text_preview": "@QuestMissile आरक्षण भारत के संविधान (1950) से शुरू हुआ। SC/ST के लिए 15%+7.5% कोटा शुरू। OBC के लिए मंडल कमीशन (1980) के आधार पर 1990 में 27% जोड़ा गया। \n\nयह कोई 'प्रोजेक्ट' नहीं, बल्कि संवैधानिक नीत"
+    },
+    {
+      "id": "2043081876588638229",
+      "author_username": "QuestMissile",
+      "author_followers": 82,
+      "likes": 0,
+      "retweets": 0,
+      "score": 0,
+      "text_preview": "@grok, भारत में 'आरक्षण प्रोजेक्ट' कब शुरू हुआ? कितना काम पूरा हो गया है और कितना बाकी है? अब तक कितने पैसे खर्च हो चुके हैं? कब तक प्रोजेक्ट पूरा होगा? \n\nएक सुझाव - जब तक ये आरक्षण का लाभ ले रहे हैं "
+    }
+  ],
+  "selected_tweet": {
+    "id": "2043081953566691547",
+    "author_username": "SAURABH742457",
+    "author_name": "सौरभ सेटे - भारतीय राष्ट्रीय कांग्रेस",
+    "text": "राजनीति में जब साधन(Power,सत्ता,ED CBI,IT) और संसाधन(Resources,राज्य सरकार, पैसा,Muscle,एयरोप्लेन) आपके पास ना हो तो साधना(Practice,Meditation,Mass Movement,Mass awakening,Think tank)से भी जंग जीती जा सकती है\ne.g., Indian National Movement\nHero:Mahatma Gandhi\nसाधना &gt;(साधन+संसाधन)",
+    "likes": 4,
+    "retweets": 0,
+    "score": 8,
+    "url": "https://x.com/SAURABH742457/status/2043081953566691547"
+  },
+  "claude_calls": [
+    {
+      "attempt": 1,
+      "kind": "draft",
+      "model": "claude-sonnet-4-20250514",
+      "ts": "03:13:56",
+      "system_prompt": "तू एक पुण्याचा विनोदी ट्विटर वापरकर्ता आहेस. तुला मराठी ट्विट्सना\nमजेशीर replies द्यायचे आहेत.\n\nRules:\n- Reply MUST be in Marathi (Devanagari script)\n- Keep it under 250 characters (leave room for Twitter)\n- Be slightly humorous — Puneri wit style: sharp but friendly\n- Stay relevant to the original tweet's topic\n- Never be offensive, political, casteist, or religious\n- Never mock the original author\n- Maximum 1-2 emoji, only if natural\n- No hashtags in replies\n- Sound like a real person, not a bot\n- If the tweet is about a serious/sad topic, be supportive\n  instead of humorous\n",
+      "user_prompt": "Original tweet by @SAURABH742457:\nराजनीति में जब साधन(Power,सत्ता,ED CBI,IT) और संसाधन(Resources,राज्य सरकार, पैसा,Muscle,एयरोप्लेन) आपके पास ना हो तो साधना(Practice,Meditation,Mass Movement,Mass awakening,Think tank)से भी जंग जीती जा सकती है\ne.g., Indian National Movement\nHero:Mahatma Gandhi\nसाधना &gt;(साधन+संसाधन)\n\nWrite a reply.",
+      "response": "वाह! गांधी जींचा फॉर्म्युला आजही relevent आहे. पण आजकाल साधना करायला पण WiFi लागतो ना 😄 सत्याग्रह ते इंटरनेट ग्रह... काळ बदलला पण तत्त्व तेच!",
+      "response_chars": 141
+    }
+  ],
+  "approval_response": null,
+  "posted_tweet_id": null,
+  "events": [
+    {
+      "ts": "03:13:51",
+      "level": "info",
+      "text": "Session started (trigger=manual, slot=0)"
+    },
+    {
+      "ts": "03:13:51",
+      "level": "info",
+      "text": "Pulled 10 tweets from X search"
+    },
+    {
+      "ts": "03:13:51",
+      "level": "info",
+      "text": "Filter breakdown — raw=10, kept=10"
+    },
+    {
+      "ts": "03:13:51",
+      "level": "warn",
+      "text": "Relaxation=any (level 3) → 10 eligible candidates"
+    },
+    {
+      "ts": "03:13:51",
+      "level": "info",
+      "text": "Selected tweet 2043081953566691547 by @SAURABH742457 (likes=4, score=8)"
+    },
+    {
+      "ts": "03:13:56",
+      "level": "info",
+      "text": "Claude draft #1 → 141 chars: वाह! गांधी जींचा फॉर्म्युला आजही relevent आहे. पण आजकाल साधना करायला पण WiFi लागतो ना 😄 सत्याग्रह ते"
+    },
+    {
+      "ts": "03:13:57",
+      "level": "info",
+      "text": "Session ended: error — 'latin-1' codec can't encode character '\\U0001f426' in position 0: ordinal not in range(256)"
+    }
+  ]
+}

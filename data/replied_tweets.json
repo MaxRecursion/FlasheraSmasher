@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "tweet_id": "111",
+    "author_username": "sunil",
+    "original_text": "आज पुण्यात खूप छान हवामान आहे!",
+    "reply_text": "अरे वा! मस्त! ☀️",
+    "replied_at": "2026-04-11T20:26:37.735072+05:30",
+    "score": 570
+  }
+]

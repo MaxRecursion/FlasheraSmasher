@@ -1,0 +1,27 @@
+{
+  "id": "20260412T114134-981743",
+  "trigger": "manual",
+  "slot_number": 0,
+  "started_at": "2026-04-12T11:41:34.170051+05:30",
+  "ended_at": null,
+  "status": "running",
+  "outcome": "",
+  "fetched_count": 0,
+  "fetched_tweets": [],
+  "filter_stats": {},
+  "relaxation_level": 0,
+  "relaxation_label": "strict",
+  "candidates_after_filter": 0,
+  "candidate_previews": [],
+  "selected_tweet": null,
+  "claude_calls": [],
+  "approval_response": null,
+  "posted_tweet_id": null,
+  "events": [
+    {
+      "ts": "11:41:34",
+      "level": "info",
+      "text": "Session started (trigger=manual, slot=0)"
+    }
+  ]
+}
